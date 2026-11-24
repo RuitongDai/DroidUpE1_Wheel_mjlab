@@ -1,0 +1,160 @@
+<mujoco model="DroidUp E1-Wheel">
+  <!-- Converted from robot_lab E1_DOG_wheel_no_head.urdf, commit 0f46197. -->
+  <compiler angle="radian" meshdir="../meshes" inertiafromgeom="false" />
+  <default>
+    <default class="visual">
+      <geom type="mesh" group="2" contype="0" conaffinity="0" />
+    </default>
+    <default class="collision">
+      <geom type="mesh" group="3" contype="0" conaffinity="1" condim="3" priority="1" friction="0.8 0.005 0.0001" />
+    </default>
+  </default>
+  <asset>
+    <mesh name="base_link" file="base_link.STL" />
+    <mesh name="FL_thigh_link" file="FL_thigh_link.STL" />
+    <mesh name="FL_hip_roll_link" file="FL_hip_roll_link.STL" />
+    <mesh name="FL_hip_yaw_link" file="FL_hip_yaw_link.STL" />
+    <mesh name="FL_calf_link" file="FL_calf_link.STL" />
+    <mesh name="FL_wheel194_link" file="FL_wheel194_link.STL" />
+    <mesh name="FR_thigh_link" file="FR_thigh_link.STL" />
+    <mesh name="FR_hip_roll_link" file="FR_hip_roll_link.STL" />
+    <mesh name="FR_hip_yaw_link" file="FR_hip_yaw_link.STL" />
+    <mesh name="FR_calf_link" file="FR_calf_link.STL" />
+    <mesh name="FR_wheel194_link" file="FR_wheel194_link.STL" />
+    <mesh name="RL_thigh_link" file="RL_thigh_link.STL" />
+    <mesh name="RL_hip_roll_link" file="RL_hip_roll_link.STL" />
+    <mesh name="RL_hip_yaw_link" file="RL_hip_yaw_link.STL" />
+    <mesh name="RL_calf_link" file="RL_calf_link.STL" />
+    <mesh name="RL_wheel194_link" file="RL_wheel194_link.STL" />
+    <mesh name="RR_thigh_link" file="RR_thigh_link.STL" />
+    <mesh name="RR_hip_roll_link" file="RR_hip_roll_link.STL" />
+    <mesh name="RR_hip_yaw_link" file="RR_hip_yaw_link.STL" />
+    <mesh name="RR_calf_link" file="RR_calf_link.STL" />
+    <mesh name="RR_wheel194_link" file="RR_wheel194_link.STL" />
+  </asset>
+  <worldbody>
+    <body name="base_link" pos="0 0 0.46">
+      <inertial pos="0.013977 2.6733E-07 -0.004053" mass="6" fullinertia="0.058314 0.056608 0.068338 -4.2259E-06 2.3373E-07 -6.4635E-07" />
+      <freejoint name="root" />
+      <geom name="base_link_visual" class="visual" mesh="base_link" rgba="0.29412 0.29412 0.29412 1" />
+      <geom name="base_link_collision" class="collision" mesh="base_link" />
+      <body name="FL_thigh_link" pos="0.17 0.109 0">
+        <inertial pos="-0.0072238 0.0070718 1.4326E-07" mass="0.785" fullinertia="0.0010753 0.00043161 0.0010285 0.0001168 -4.0136E-11 -2.0555E-09" />
+        <joint name="FL_thigh_joint" axis="0 1 0" range="-3.1416 3.1416" />
+        <geom name="FL_thigh_link_visual" class="visual" mesh="FL_thigh_link" rgba="0.29412 0.29412 0.29412 1" />
+        <geom name="FL_thigh_link_collision" class="collision" mesh="FL_thigh_link" />
+        <body name="FL_hip_roll_link" pos="0 0.036 0">
+          <inertial pos="0.0072821 0.018935 -0.046755" mass="0.645" fullinertia="0.00077804 0.00074389 0.00049477 6.1014E-05 -0.00016056 0.00011541" />
+          <joint name="FL_hip_roll_joint" axis="1 0 0" range="-0.4363 3.1416" />
+          <geom name="FL_hip_roll_link_visual" class="visual" mesh="FL_hip_roll_link" rgba="0.29412 0.29412 0.29412 1" />
+          <body name="FL_hip_yaw_link" pos="0 0.03235 -0.091754" euler="0.2618 0 0">
+            <inertial pos="-6.2336E-08 -0.012168 -0.070391" mass="0.909" fullinertia="0.0017323 0.0020031 0.00056898 6.2429E-10 2.1785E-09 -0.00012721" />
+            <joint name="FL_hip_yaw_joint" axis="0 0 1" range="-1.4835 0.7854" />
+            <geom name="FL_hip_yaw_link_visual" class="visual" mesh="FL_hip_yaw_link" rgba="0.62745 0.68627 0.58824 1" />
+            <geom name="FL_hip_yaw_link_collision" class="collision" mesh="FL_hip_yaw_link" />
+            <body name="FL_calf_link" pos="0 -0.0032401 -0.1112" euler="-0.2618 0 0">
+              <inertial pos="-7.2919E-05 0.029918 -0.090431" mass="1.165" fullinertia="0.0011359 0.0012136 0.00045557 -5.5412E-10 3.5592E-05 2.3587E-05" />
+              <joint name="FL_calf_joint" axis="0 1 0" range="-2.618 1.309" />
+              <geom name="FL_calf_link_visual" class="visual" mesh="FL_calf_link" rgba="0.29412 0.29412 0.29412 1" />
+              <geom name="FL_calf_link_collision" class="collision" mesh="FL_calf_link" />
+              <body name="FL_wheel_link" pos="0 0.059 -0.198">
+                <inertial pos="-1.2269E-11 0.024496 -5.824E-12" mass="1.126" fullinertia="0.0023614 0.0044054 0.0023614 -9.6406E-16 2.6148E-08 1.9338E-15" />
+                <joint name="FL_wheel_joint" axis="0 1 0" limited="false" />
+                <geom name="FL_wheel_link_visual" class="visual" mesh="FL_wheel194_link" rgba="1 1 1 1" />
+                <geom name="FL_wheel_link_collision" class="collision" mesh="FL_wheel194_link" />
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="FR_thigh_link" pos="0.17 -0.109 0">
+        <inertial pos="-0.0072245 -0.0070718 -7.5526E-07" mass="0.785" fullinertia="0.0010753 0.00043161 0.0010285 -0.0001168 4.202E-09 -2.7412E-10" />
+        <joint name="FR_thigh_joint" axis="0 1 0" range="-3.1416 3.1416" />
+        <geom name="FR_thigh_link_visual" class="visual" mesh="FR_thigh_link" rgba="0.29412 0.29412 0.29412 1" />
+        <geom name="FR_thigh_link_collision" class="collision" mesh="FR_thigh_link" />
+        <body name="FR_hip_roll_link" pos="0 -0.036 0">
+          <inertial pos="0.007282 -0.018936 -0.046755" mass="0.645" fullinertia="0.00077803 0.00074389 0.00049477 -6.1015E-05 -0.00016056 -0.0001154" />
+          <joint name="FR_hip_roll_joint" axis="1 0 0" range="-3.1416 0.4363" />
+          <geom name="FR_hip_roll_link_visual" class="visual" mesh="FR_hip_roll_link" rgba="0.29412 0.29412 0.29412 1" />
+          <body name="FR_hip_yaw_link" pos="0 -0.03235 -0.091754" euler="-0.2618 0 0">
+            <inertial pos="9.0038E-08 0.012168 -0.070391" mass="0.909" fullinertia="0.0017323 0.0020031 0.00056898 8.1888E-10 4.8349E-09 0.00012721" />
+            <joint name="FR_hip_yaw_joint" axis="0 0 1" range="-0.7854 1.4835" />
+            <geom name="FR_hip_yaw_link_visual" class="visual" mesh="FR_hip_yaw_link" rgba="0.62745 0.68627 0.58824 1" />
+            <geom name="FR_hip_yaw_link_collision" class="collision" mesh="FR_hip_yaw_link" />
+            <body name="FR_calf_link" pos="0 0.0032401 -0.1112" euler="0.2618 0 0">
+              <inertial pos="-7.2805E-05 -0.029918 -0.090432" mass="1.165" fullinertia="0.0011359 0.0012136 0.00045557 2.9301E-10 3.5595E-05 -2.3589E-05" />
+              <joint name="FR_calf_joint" axis="0 1 0" range="-2.618 1.309" />
+              <geom name="FR_calf_link_visual" class="visual" mesh="FR_calf_link" rgba="0.29412 0.29412 0.29412 1" />
+              <geom name="FR_calf_link_collision" class="collision" mesh="FR_calf_link" />
+              <body name="FR_wheel_link" pos="0 -0.059 -0.198">
+                <inertial pos="-1.275E-11 -0.024504 -4.6757E-12" mass="1.126" fullinertia="0.0023614 0.0044054 0.0023614 -7.8889E-16 2.1933E-08 2.0161E-15" />
+                <joint name="FR_wheel_joint" axis="0 1 0" limited="false" />
+                <geom name="FR_wheel_link_visual" class="visual" mesh="FR_wheel194_link" rgba="1 1 1 1" />
+                <geom name="FR_wheel_link_collision" class="collision" mesh="FR_wheel194_link" />
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="RL_thigh_link" pos="-0.17 0.109 0">
+        <inertial pos="-0.0072238 0.0070718 1.4327E-07" mass="0.785" fullinertia="0.0010753 0.00043161 0.0010285 0.0001168 -3.9949E-11 -2.0557E-09" />
+        <joint name="RL_thigh_joint" axis="0 1 0" range="-3.1416 3.1416" />
+        <geom name="RL_thigh_link_visual" class="visual" mesh="RL_thigh_link" rgba="0.29412 0.29412 0.29412 1" />
+        <geom name="RL_thigh_link_collision" class="collision" mesh="RL_thigh_link" />
+        <body name="RL_hip_roll_link" pos="0 0.036 0">
+          <inertial pos="0.0072821 0.018935 -0.046755" mass="0.645" fullinertia="0.00077804 0.00074389 0.00049477 6.1014E-05 -0.00016056 0.00011541" />
+          <joint name="RL_hip_roll_joint" axis="1 0 0" range="-0.4363 3.1416" />
+          <geom name="RL_hip_roll_link_visual" class="visual" mesh="RL_hip_roll_link" rgba="0.29412 0.29412 0.29412 1" />
+          <body name="RL_hip_yaw_link" pos="0 0.03235 -0.091754" euler="0.2618 0 0">
+            <inertial pos="-6.2336E-08 -0.012168 -0.070391" mass="0.909" fullinertia="0.0017323 0.0020031 0.00056898 6.2429E-10 2.1785E-09 -0.00012721" />
+            <joint name="RL_hip_yaw_joint" axis="0 0 1" range="-1.4835 0.7854" />
+            <geom name="RL_hip_yaw_link_visual" class="visual" mesh="RL_hip_yaw_link" rgba="0.62745 0.68627 0.58824 1" />
+            <geom name="RL_hip_yaw_link_collision" class="collision" mesh="RL_hip_yaw_link" />
+            <body name="RL_calf_link" pos="0 -0.0032401 -0.1112" euler="-0.2618 0 0">
+              <inertial pos="-7.2919E-05 0.029918 -0.090431" mass="1.165" fullinertia="0.0011359 0.0012136 0.00045557 -5.5412E-10 3.5592E-05 2.3587E-05" />
+              <joint name="RL_calf_joint" axis="0 1 0" range="-2.618 1.309" />
+              <geom name="RL_calf_link_visual" class="visual" mesh="RL_calf_link" rgba="0.29412 0.29412 0.29412 1" />
+              <geom name="RL_calf_link_collision" class="collision" mesh="RL_calf_link" />
+              <body name="RL_wheel_link" pos="0 0.059 -0.198">
+                <inertial pos="-1.2269E-11 0.024496 -5.8228E-12" mass="1.126" fullinertia="0.0023614 0.0044054 0.0023614 -9.7045E-16 2.6148E-08 1.9358E-15" />
+                <joint name="RL_wheel_joint" axis="0 1 0" limited="false" />
+                <geom name="RL_wheel_link_visual" class="visual" mesh="RL_wheel194_link" rgba="1 1 1 1" />
+                <geom name="RL_wheel_link_collision" class="collision" mesh="RL_wheel194_link" />
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="RR_thigh_link" pos="-0.17 -0.109 0">
+        <inertial pos="-0.0072245 -0.0070718 -7.5526E-07" mass="0.785" fullinertia="0.0010753 0.00043161 0.0010285 -0.0001168 4.202E-09 -2.7412E-10" />
+        <joint name="RR_thigh_joint" axis="0 1 0" range="-3.1416 3.1416" />
+        <geom name="RR_thigh_link_visual" class="visual" mesh="RR_thigh_link" rgba="0.29412 0.29412 0.29412 1" />
+        <geom name="RR_thigh_link_collision" class="collision" mesh="RR_thigh_link" />
+        <body name="RR_hip_roll_link" pos="0 -0.036 0">
+          <inertial pos="0.007282 -0.018936 -0.046755" mass="0.645" fullinertia="0.00077803 0.00074389 0.00049477 -6.1015E-05 -0.00016056 -0.0001154" />
+          <joint name="RR_hip_roll_joint" axis="1 0 0" range="-3.1416 0.4363" />
+          <geom name="RR_hip_roll_link_visual" class="visual" mesh="RR_hip_roll_link" rgba="0.29412 0.29412 0.29412 1" />
+          <body name="RR_hip_yaw_link" pos="0 -0.03235 -0.091754" euler="-0.2618 0 0">
+            <inertial pos="8.9752E-08 0.012168 -0.070391" mass="0.909" fullinertia="0.0017323 0.0020031 0.00056898 8.5349E-10 4.8286E-09 0.00012721" />
+            <joint name="RR_hip_yaw_joint" axis="0 0 1" range="-0.7854 1.4835" />
+            <geom name="RR_hip_yaw_link_visual" class="visual" mesh="RR_hip_yaw_link" rgba="0.62745 0.68627 0.58824 1" />
+            <geom name="RR_hip_yaw_link_collision" class="collision" mesh="RR_hip_yaw_link" />
+            <body name="RR_calf_link" pos="0 0.0032401 -0.1112" euler="0.2618 0 0">
+              <inertial pos="-7.2805E-05 -0.029918 -0.090432" mass="1.165" fullinertia="0.0011359 0.0012136 0.00045557 2.9301E-10 3.5595E-05 -2.3589E-05" />
+              <joint name="RR_calf_joint" axis="0 1 0" range="-2.618 1.309" />
+              <geom name="RR_calf_link_visual" class="visual" mesh="RR_calf_link" rgba="0.29412 0.29412 0.29412 1" />
+              <geom name="RR_calf_link_collision" class="collision" mesh="RR_calf_link" />
+              <body name="RR_wheel_link" pos="0 -0.059 -0.198">
+                <inertial pos="-1.2269E-11 -0.024504 -5.8232E-12" mass="1.126" fullinertia="0.0023614 0.0044054 0.0023614 -9.6804E-16 2.6148E-08 1.9348E-15" />
+                <joint name="RR_wheel_joint" axis="0 1 0" limited="false" />
+                <geom name="RR_wheel_link_visual" class="visual" mesh="RR_wheel194_link" rgba="1 1 1 1" />
+                <geom name="RR_wheel_link_collision" class="collision" mesh="RR_wheel194_link" />
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="imu_in_pelvis" pos="0.165 0 -0.061" />
+    </body>
+  </worldbody>
+</mujoco>

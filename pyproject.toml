@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "droidup-e1-wheel"
+version = "0.1.0"
+description = "DroidUp E1-Wheel velocity tracking tasks for mjlab."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = ["mjlab==1.6.0"]
+
+[project.entry-points."mjlab.tasks"]
+droidup_e1_wheel = "droidup_e1_wheel.tasks.velocity"
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"droidup_e1_wheel.assets.e1_wheel" = ["xmls/*.xml", "meshes/*.STL"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
