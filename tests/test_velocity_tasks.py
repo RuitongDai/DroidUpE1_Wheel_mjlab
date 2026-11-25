@@ -13,7 +13,11 @@ from droidup_e1_wheel.assets.e1_wheel.e1_wheel_constants import (
     WHEEL_JOINT_NAMES,
 )
 from droidup_e1_wheel.tasks.velocity import FLAT_TASK_ID, ROUGH_TASK_ID
-from droidup_e1_wheel.tasks.velocity.env_cfgs import VELOCITY_COMMAND
+from droidup_e1_wheel.tasks.velocity.env_cfgs import (
+    BODY_CONTACT,
+    VELOCITY_COMMAND,
+    WHEEL_CONTACT,
+)
 from droidup_e1_wheel.tasks.velocity.mdp.rewards import wheel_vel_penalty_without_cmd
 
 
@@ -58,7 +62,14 @@ def test_task_configs(task_id, terrain, iterations):
     assert tuple(train.actions) == ("joint_pos", "joint_vel")
     assert train.actions["joint_pos"].actuator_names == LEG_JOINT_NAMES
     assert train.actions["joint_vel"].actuator_names == WHEEL_JOINT_NAMES
-    assert train.sim.mujoco.timestep == 0.005 and train.decimation == 4
+    for cfg in (train, play):
+        assert cfg.sim.mujoco.timestep == 0.0025
+        assert cfg.sim.mujoco.timestep * cfg.decimation == pytest.approx(0.02)
+        for sensor in cfg.scene.sensors:
+            if sensor.name in (BODY_CONTACT, WHEEL_CONTACT):
+                assert sensor.history_length * cfg.sim.mujoco.timestep == pytest.approx(
+                    0.015
+                )
     assert load_rl_cfg(task_id).max_iterations == iterations
 
 

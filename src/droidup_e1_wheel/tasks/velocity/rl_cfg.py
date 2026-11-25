@@ -12,7 +12,7 @@ def e1_wheel_ppo_runner_cfg(*, rough: bool) -> RslRlOnPolicyRunnerCfg:
         logger="tensorboard",
         num_steps_per_env=24,
         max_iterations=20_000 if rough else 5_000,
-        save_interval=100,
+        save_interval=500,
         actor=RslRlModelCfg(
             hidden_dims=(512, 256, 128),
             activation="elu",

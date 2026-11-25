@@ -10,12 +10,14 @@ from mjlab.envs.mdp import dr
 from mjlab.managers import (
     CurriculumTermCfg,
     EventTermCfg,
+    MetricsTermCfg,
     ObservationGroupCfg,
     ObservationTermCfg,
     RewardTermCfg,
     SceneEntityCfg,
     TerminationTermCfg,
 )
+from mjlab.scene import SceneCfg
 from mjlab.sensor import (
     ContactMatch,
     ContactSensorCfg,
@@ -23,10 +25,11 @@ from mjlab.sensor import (
     ObjRef,
     RayCastSensorCfg,
 )
+from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.tasks.velocity.mdp import out_of_terrain_bounds, terrain_levels_vel
-from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.utils.noise import UniformNoiseCfg
+from mjlab.viewer import ViewerConfig
 
 from droidup_e1_wheel.assets.e1_wheel.e1_wheel_constants import (
     BASE_LINK,
@@ -50,19 +53,60 @@ BODY_CONTACT = "body_contact"
 HEIGHT_SCAN = "height_scanner"
 
 
-def _observation_groups(*, rough: bool, play: bool) -> dict[str, ObservationGroupCfg]:
+def e1_wheel_rough_env_cfg(*, play: bool = False) -> ManagerBasedRlEnvCfg:
+    """Create the E1-Wheel velocity task on rough terrain."""
+
+    ##
+    # Sensors
+    ##
+
+    contact_history = 6  # Keep the 15 ms force history used by the rewards.
+    sensors = (
+        ContactSensorCfg(
+            name=WHEEL_CONTACT,
+            primary=ContactMatch(mode="body", pattern=WHEEL_LINK_NAMES, entity="robot"),
+            fields=("found", "force"),
+            reduce="netforce",
+            history_length=contact_history,
+            track_air_time=True,
+        ),
+        ContactSensorCfg(
+            name=BODY_CONTACT,
+            primary=ContactMatch(
+                mode="body",
+                pattern=("(base_link|.*_(thigh|hip_yaw|calf)_link)",),
+                entity="robot",
+            ),
+            fields=("force",),
+            reduce="netforce",
+            history_length=contact_history,
+        ),
+        RayCastSensorCfg(
+            name=HEIGHT_SCAN,
+            frame=ObjRef(type="body", name=BASE_LINK, entity="robot"),
+            ray_alignment="yaw",
+            pattern=GridPatternCfg(size=(1.6, 1.0), resolution=0.1),
+            max_distance=5.0,
+            include_geom_groups=(0,),
+        ),
+    )
+
+    ##
+    # Observations
+    ##
+
     wheels = SceneEntityCfg("robot", joint_names=WHEEL_JOINT_NAMES)
     ordered_joints = SceneEntityCfg(
         "robot", joint_names=POLICY_JOINT_NAMES, preserve_order=True
     )
     clip = (-100.0, 100.0)
-    command = ObservationTermCfg(
+    command_obs = ObservationTermCfg(
         func=mdp.generated_commands,
         params={"command_name": VELOCITY_COMMAND},
         clip=clip,
     )
-    action = ObservationTermCfg(func=mdp.last_action, clip=clip)
-    actor = {
+    last_action_obs = ObservationTermCfg(func=mdp.last_action, clip=clip)
+    actor_terms = {
         "base_ang_vel": ObservationTermCfg(
             func=mdp.base_ang_vel,
             clip=clip,
@@ -74,7 +118,7 @@ def _observation_groups(*, rough: bool, play: bool) -> dict[str, ObservationGrou
             clip=clip,
             noise=UniformNoiseCfg(n_min=-0.05, n_max=0.05),
         ),
-        "velocity_commands": command,
+        "velocity_commands": command_obs,
         "joint_pos": ObservationTermCfg(
             func=observations.joint_pos_rel_without_wheel,
             params={"asset_cfg": ordered_joints, "wheel_asset_cfg": wheels},
@@ -88,135 +132,99 @@ def _observation_groups(*, rough: bool, play: bool) -> dict[str, ObservationGrou
             clip=clip,
             noise=UniformNoiseCfg(n_min=-1.5, n_max=1.5),
         ),
-        "actions": action,
+        "actions": last_action_obs,
     }
     # The source critic selects all joints in the articulation's native order.
-    critic = {
+    critic_terms = {
         "base_lin_vel": ObservationTermCfg(
             func=observations.base_com_lin_vel, clip=clip
         ),
         "base_ang_vel": ObservationTermCfg(func=mdp.base_ang_vel, clip=clip),
         "projected_gravity": ObservationTermCfg(func=mdp.projected_gravity, clip=clip),
-        "velocity_commands": command,
+        "velocity_commands": command_obs,
         "joint_pos": ObservationTermCfg(
             func=observations.joint_pos_rel_without_wheel,
             params={"asset_cfg": SceneEntityCfg("robot"), "wheel_asset_cfg": wheels},
             clip=clip,
         ),
         "joint_vel": ObservationTermCfg(func=mdp.joint_vel_rel, clip=clip),
-        "actions": action,
-    }
-    if rough:
-        critic["height_scan"] = ObservationTermCfg(
+        "actions": last_action_obs,
+        "height_scan": ObservationTermCfg(
             func=mdp.height_scan,
             params={"sensor_name": HEIGHT_SCAN, "offset": 0.5},
             clip=(-1.0, 1.0),
-        )
-    return {
+        ),
+    }
+    observation_groups = {
         "actor": ObservationGroupCfg(
-            terms=actor, concatenate_terms=True, enable_corruption=not play
+            terms=actor_terms, concatenate_terms=True, enable_corruption=not play
         ),
         "critic": ObservationGroupCfg(
-            terms=critic, concatenate_terms=True, enable_corruption=False
+            terms=critic_terms, concatenate_terms=True, enable_corruption=False
         ),
     }
 
+    ##
+    # Metrics
+    ##
 
-def _reward_terms() -> dict[str, RewardTermCfg]:
-    leg = SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES)
-    wheel = SceneEntityCfg("robot", joint_names=WHEEL_JOINT_NAMES)
-    front = SceneEntityCfg(
-        "robot", joint_names=LEG_JOINT_NAMES[:8], preserve_order=True
-    )
-    diagonal = SceneEntityCfg(
-        "robot",
-        joint_names=tuple(
-            f"{side}_{kind}_joint" for side in ("RL", "RR") for kind in LEG_JOINT_TYPES
-        ),
-        preserve_order=True,
-    )
-    command = {"command_name": VELOCITY_COMMAND}
-    return {
-        "lin_vel_z_l2": RewardTermCfg(func=rewards.lin_vel_z_l2, weight=-2.0),
-        "ang_vel_xy_l2": RewardTermCfg(func=rewards.ang_vel_xy_l2, weight=-0.05),
-        "joint_torques_l2": RewardTermCfg(
-            func=mdp.joint_torques_l2,
-            weight=-2.5e-5,
-            params={
-                "asset_cfg": SceneEntityCfg(
-                    "robot", actuator_names=list(LEG_JOINT_NAMES)
-                )
+    metrics = {"mean_action_acc": MetricsTermCfg(func=mdp.mean_action_acc)}
+
+    ##
+    # Actions
+    ##
+
+    wheel_speed_limit = JOINT_VELOCITY_LIMITS["wheel"]
+    actions = {
+        "joint_pos": OrderedJointPositionActionCfg(
+            entity_name="robot",
+            actuator_names=LEG_JOINT_NAMES,
+            preserve_order=True,
+            use_default_offset=True,
+            scale={
+                ".*_hip_(roll|yaw)_joint": 0.125,
+                "(?!.*_hip_(roll|yaw)_joint).*": 0.25,
             },
+            clip={".*": (-100.0, 100.0)},
         ),
-        "joint_acc_l2": RewardTermCfg(
-            func=mdp.joint_acc_l2, weight=-2.5e-7, params={"asset_cfg": leg}
+        "joint_vel": OrderedJointVelocityActionCfg(
+            entity_name="robot",
+            actuator_names=WHEEL_JOINT_NAMES,
+            preserve_order=True,
+            use_default_offset=True,
+            scale=5.0,
+            clip={".*": (-wheel_speed_limit, wheel_speed_limit)},
         ),
-        "joint_acc_wheel_l2": RewardTermCfg(
-            func=mdp.joint_acc_l2, weight=-2.5e-9, params={"asset_cfg": wheel}
-        ),
-        "joint_pos_limits": RewardTermCfg(
-            func=mdp.joint_pos_limits, weight=-5.0, params={"asset_cfg": leg}
-        ),
-        "joint_power": RewardTermCfg(
-            func=rewards.joint_power, weight=-2e-5, params={"asset_cfg": leg}
-        ),
-        "stand_still": RewardTermCfg(
-            func=rewards.stand_still,
-            weight=-2.0,
-            params={**command, "asset_cfg": leg, "command_threshold": 0.1},
-        ),
-        "joint_pos_penalty": RewardTermCfg(
-            func=rewards.joint_pos_penalty,
-            weight=-1.0,
-            params={
-                **command,
-                "asset_cfg": leg,
-                "stand_still_scale": 5.0,
-                "velocity_threshold": 0.5,
-                "command_threshold": 0.1,
-            },
-        ),
-        "wheel_vel_penalty": RewardTermCfg(
-            func=rewards.wheel_vel_penalty_without_cmd,
-            weight=-0.05,
-            params={**command, "asset_cfg": wheel, "command_threshold": 1e-6},
-        ),
-        "joint_mirror": RewardTermCfg(
-            func=rewards.joint_mirror,
-            weight=-0.05,
-            params={"front_cfg": front, "diagonal_cfg": diagonal},
-        ),
-        "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.01),
-        "undesired_contacts": RewardTermCfg(
-            func=rewards.undesired_contacts,
-            weight=-1.0,
-            params={"sensor_name": BODY_CONTACT, "threshold": 1.0},
-        ),
-        "contact_forces": RewardTermCfg(
-            func=rewards.contact_forces,
-            weight=-1.5e-4,
-            params={"sensor_name": WHEEL_CONTACT, "threshold": 100.0},
-        ),
-        "track_lin_vel_xy_exp": RewardTermCfg(
-            func=rewards.track_lin_vel_xy_exp,
-            weight=3.0,
-            params={**command, "std": 0.5},
-        ),
-        "track_ang_vel_z_exp": RewardTermCfg(
-            func=rewards.track_ang_vel_z_exp, weight=1.5, params={**command, "std": 0.5}
-        ),
-        "feet_contact_without_cmd": RewardTermCfg(
-            func=rewards.feet_contact_without_cmd,
-            weight=0.1,
-            params={**command, "sensor_name": WHEEL_CONTACT},
-        ),
-        "upward": RewardTermCfg(func=rewards.upward, weight=1.0),
     }
 
+    ##
+    # Commands
+    ##
 
-def _training_events() -> dict[str, EventTermCfg]:
+    commands = {
+        VELOCITY_COMMAND: E1WheelVelocityCommandCfg(
+            entity_name="robot",
+            resampling_time_range=(10.0, 10.0),
+            rel_standing_envs=0.05,
+            rel_heading_envs=0.5,
+            heading_command=True,
+            heading_control_stiffness=0.5,
+            debug_vis=True,
+            ranges=E1WheelVelocityCommandCfg.Ranges(
+                lin_vel_x=(-1.2, 1.2),
+                lin_vel_y=(-1.0, 1.0),
+                ang_vel_z=(-1.5, 1.5),
+                heading=(-math.pi, math.pi),
+            ),
+        )
+    }
+
+    ##
+    # Events
+    ##
+
     base = SceneEntityCfg("robot", body_names=(BASE_LINK,))
-    return {
+    event_terms = {
         "randomize_contact_material": EventTermCfg(
             func=events.randomize_contact_material,
             mode="startup",
@@ -282,117 +290,176 @@ def _training_events() -> dict[str, EventTermCfg]:
             params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
         ),
     }
+    if play:
+        event_terms = {"reset_scene": event_terms["reset_scene"]}
 
+    ##
+    # Rewards
+    ##
 
-def _velocity_env_cfg(*, rough: bool, play: bool) -> ManagerBasedRlEnvCfg:
-    cfg = make_velocity_env_cfg()
-    cfg.scene.entities = {"robot": get_e1_wheel_robot_cfg()}
-    cfg.scene.num_envs = 1 if play else 4096
-    cfg.scene.terrain = (
-        e1_wheel_rough_terrain_cfg(play=play)
-        if rough
-        else TerrainEntityCfg(terrain_type="plane")
+    leg = SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES)
+    wheel = SceneEntityCfg("robot", joint_names=WHEEL_JOINT_NAMES)
+    front = SceneEntityCfg(
+        "robot", joint_names=LEG_JOINT_NAMES[:8], preserve_order=True
     )
-    cfg.scene.sensors = (
-        ContactSensorCfg(
-            name=WHEEL_CONTACT,
-            primary=ContactMatch(mode="body", pattern=WHEEL_LINK_NAMES, entity="robot"),
-            fields=("found", "force"),
-            reduce="netforce",
-            history_length=3,
-            track_air_time=True,
+    diagonal = SceneEntityCfg(
+        "robot",
+        joint_names=tuple(
+            f"{side}_{kind}_joint" for side in ("RL", "RR") for kind in LEG_JOINT_TYPES
         ),
-        ContactSensorCfg(
-            name=BODY_CONTACT,
-            primary=ContactMatch(
-                mode="body",
-                pattern=("(base_link|.*_(thigh|hip_yaw|calf)_link)",),
-                entity="robot",
-            ),
-            fields=("force",),
-            reduce="netforce",
-            history_length=3,
-        ),
+        preserve_order=True,
     )
-    if rough:
-        cfg.scene.sensors += (
-            RayCastSensorCfg(
-                name=HEIGHT_SCAN,
-                frame=ObjRef(type="body", name=BASE_LINK, entity="robot"),
-                ray_alignment="yaw",
-                pattern=GridPatternCfg(size=(1.6, 1.0), resolution=0.1),
-                max_distance=5.0,
-                include_geom_groups=(0,),
-            ),
-        )
-    wheel_speed_limit = JOINT_VELOCITY_LIMITS["wheel"]
-    cfg.actions = {
-        "joint_pos": OrderedJointPositionActionCfg(
-            entity_name="robot",
-            actuator_names=LEG_JOINT_NAMES,
-            preserve_order=True,
-            use_default_offset=True,
-            scale={
-                ".*_hip_(roll|yaw)_joint": 0.125,
-                "(?!.*_hip_(roll|yaw)_joint).*": 0.25,
+    command_params = {"command_name": VELOCITY_COMMAND}
+    reward_terms = {
+        "lin_vel_z_l2": RewardTermCfg(func=rewards.lin_vel_z_l2, weight=-2.0),
+        "ang_vel_xy_l2": RewardTermCfg(func=rewards.ang_vel_xy_l2, weight=-0.05),
+        "joint_torques_l2": RewardTermCfg(
+            func=mdp.joint_torques_l2,
+            weight=-2.5e-5,
+            params={
+                "asset_cfg": SceneEntityCfg(
+                    "robot", actuator_names=list(LEG_JOINT_NAMES)
+                )
             },
-            clip={".*": (-100.0, 100.0)},
         ),
-        "joint_vel": OrderedJointVelocityActionCfg(
-            entity_name="robot",
-            actuator_names=WHEEL_JOINT_NAMES,
-            preserve_order=True,
-            use_default_offset=True,
-            scale=5.0,
-            clip={".*": (-wheel_speed_limit, wheel_speed_limit)},
+        "joint_acc_l2": RewardTermCfg(
+            func=mdp.joint_acc_l2, weight=-2.5e-7, params={"asset_cfg": leg}
         ),
+        "joint_acc_wheel_l2": RewardTermCfg(
+            func=mdp.joint_acc_l2, weight=-2.5e-9, params={"asset_cfg": wheel}
+        ),
+        "joint_pos_limits": RewardTermCfg(
+            func=mdp.joint_pos_limits, weight=-5.0, params={"asset_cfg": leg}
+        ),
+        "joint_power": RewardTermCfg(
+            func=rewards.joint_power, weight=-2e-5, params={"asset_cfg": leg}
+        ),
+        "stand_still": RewardTermCfg(
+            func=rewards.stand_still,
+            weight=-2.0,
+            params={**command_params, "asset_cfg": leg, "command_threshold": 0.1},
+        ),
+        "joint_pos_penalty": RewardTermCfg(
+            func=rewards.joint_pos_penalty,
+            weight=-1.0,
+            params={
+                **command_params,
+                "asset_cfg": leg,
+                "stand_still_scale": 5.0,
+                "velocity_threshold": 0.5,
+                "command_threshold": 0.1,
+            },
+        ),
+        "wheel_vel_penalty": RewardTermCfg(
+            func=rewards.wheel_vel_penalty_without_cmd,
+            weight=-0.05,
+            params={**command_params, "asset_cfg": wheel, "command_threshold": 1e-6},
+        ),
+        "joint_mirror": RewardTermCfg(
+            func=rewards.joint_mirror,
+            weight=-0.05,
+            params={"front_cfg": front, "diagonal_cfg": diagonal},
+        ),
+        "action_rate_l2": RewardTermCfg(func=mdp.action_rate_l2, weight=-0.01),
+        "undesired_contacts": RewardTermCfg(
+            func=rewards.undesired_contacts,
+            weight=-1.0,
+            params={"sensor_name": BODY_CONTACT, "threshold": 1.0},
+        ),
+        "contact_forces": RewardTermCfg(
+            func=rewards.contact_forces,
+            weight=-1.5e-4,
+            params={"sensor_name": WHEEL_CONTACT, "threshold": 100.0},
+        ),
+        "track_lin_vel_xy_exp": RewardTermCfg(
+            func=rewards.track_lin_vel_xy_exp,
+            weight=3.0,
+            params={**command_params, "std": 0.5},
+        ),
+        "track_ang_vel_z_exp": RewardTermCfg(
+            func=rewards.track_ang_vel_z_exp,
+            weight=1.5,
+            params={**command_params, "std": 0.5},
+        ),
+        "feet_contact_without_cmd": RewardTermCfg(
+            func=rewards.feet_contact_without_cmd,
+            weight=0.1,
+            params={**command_params, "sensor_name": WHEEL_CONTACT},
+        ),
+        "upward": RewardTermCfg(func=rewards.upward, weight=1.0),
     }
-    cfg.commands = {
-        VELOCITY_COMMAND: E1WheelVelocityCommandCfg(
-            entity_name="robot",
-            resampling_time_range=(10.0, 10.0),
-            rel_standing_envs=0.05,
-            rel_heading_envs=0.5,
-            heading_command=True,
-            heading_control_stiffness=0.5,
-            debug_vis=True,
-            ranges=E1WheelVelocityCommandCfg.Ranges(
-                lin_vel_x=(-2.0, 2.0),
-                lin_vel_y=(-1.0, 1.0),
-                ang_vel_z=(-1.5, 1.5),
-                heading=(-math.pi, math.pi),
-            ),
-        )
-    }
-    cfg.observations = _observation_groups(rough=rough, play=play)
-    cfg.rewards = _reward_terms()
-    cfg.terminations = {
-        "time_out": TerminationTermCfg(func=mdp.time_out, time_out=True)
-    }
-    if rough:
-        cfg.terminations["terrain_out_of_bounds"] = TerminationTermCfg(
+
+    ##
+    # Terminations
+    ##
+
+    terminations = {
+        "time_out": TerminationTermCfg(func=mdp.time_out, time_out=True),
+        "terrain_out_of_bounds": TerminationTermCfg(
             func=out_of_terrain_bounds, time_out=True, params={"margin": 3.0}
-        )
-    cfg.curriculum = {}
-    if rough and not play:
-        cfg.curriculum["terrain_levels"] = CurriculumTermCfg(
+        ),
+    }
+
+    ##
+    # Curriculum
+    ##
+
+    curriculum = {}
+    if not play:
+        curriculum["terrain_levels"] = CurriculumTermCfg(
             func=terrain_levels_vel, params={"command_name": VELOCITY_COMMAND}
         )
-    cfg.events = (
-        {"reset_scene": EventTermCfg(func=mdp.reset_scene_to_default, mode="reset")}
-        if play
-        else _training_events()
+
+    ##
+    # Assemble and return
+    ##
+
+    return ManagerBasedRlEnvCfg(
+        scene=SceneCfg(
+            terrain=e1_wheel_rough_terrain_cfg(play=play),
+            entities={"robot": get_e1_wheel_robot_cfg()},
+            sensors=sensors,
+            num_envs=1 if play else 4096,
+            extent=2.0,
+        ),
+        observations=observation_groups,
+        actions=actions,
+        commands=commands,
+        events=event_terms,
+        rewards=reward_terms,
+        terminations=terminations,
+        curriculum=curriculum,
+        metrics=metrics,
+        viewer=ViewerConfig(
+            origin_type=ViewerConfig.OriginType.ASSET_BODY,
+            entity_name="robot",
+            body_name=BASE_LINK,
+            distance=3.0,
+            elevation=-5.0,
+            azimuth=90.0,
+        ),
+        sim=SimulationCfg(
+            nconmax=192,
+            njmax=1500,
+            # Resolve fast joint and contact transients at 400 Hz.
+            mujoco=MujocoCfg(timestep=0.0025, iterations=10, ls_iterations=20),
+        ),
+        decimation=8,  # 50 Hz policy.
+        episode_length_s=1.0e9 if play else 20.0,
     )
-    cfg.sim.nconmax = 192 if rough else 96
-    cfg.viewer.body_name = BASE_LINK
-    if play:
-        cfg.episode_length_s = 1.0e9
-    return cfg
 
 
 def e1_wheel_flat_env_cfg(*, play: bool = False) -> ManagerBasedRlEnvCfg:
-    return _velocity_env_cfg(rough=False, play=play)
+    """Create the flat variant of the E1-Wheel velocity task."""
+    cfg = e1_wheel_rough_env_cfg(play=play)
 
+    cfg.scene.terrain = TerrainEntityCfg(terrain_type="plane")
+    cfg.scene.sensors = tuple(
+        sensor for sensor in cfg.scene.sensors if sensor.name != HEIGHT_SCAN
+    )
+    del cfg.observations["critic"].terms["height_scan"]
+    del cfg.terminations["terrain_out_of_bounds"]
+    cfg.curriculum.pop("terrain_levels", None)
+    cfg.sim.nconmax = 96
 
-def e1_wheel_rough_env_cfg(*, play: bool = False) -> ManagerBasedRlEnvCfg:
-    return _velocity_env_cfg(rough=True, play=play)
+    return cfg
